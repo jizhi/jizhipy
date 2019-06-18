@@ -1,0 +1,2 @@
+from jizhipy.Crawler.CrawlerBaiduImage import CrawlerBaiduImage
+from jizhipy.Crawler.CrawlerBingImage import CrawlerBingImage

@@ -1,0 +1,140 @@
+#! /usr/bin/env python
+
+#whichvim = 'vim'
+whichvim = '/Applications/MacVim.app/Contents/MacOS/Vim'
+
+def helpy(vim):
+	'''
+	vim:
+		Path of vim, use vim to open the output file
+		If vim=None: don't open
+	'''
+	import sys, os
+	dirpath = os.path.expanduser('~/helpy_doc/')
+	if (not os.path.exists(dirpath)): 
+		os.system('mkdir '+dirpath)
+
+	if ('--notvim' in sys.argv):
+		vim = None
+		sys.argv.remove('--notvim')
+	if ('--syspath' in sys.argv):
+		n = sys.argv.index('--syspath')
+		syspath = sys.argv[n+1].split(':')
+		sys.argv.pop(n)
+		sys.argv.pop(n)
+	else: syspath = []
+
+	if (len(sys.argv)>=4):
+		print('Error: number of arguments should be <=2 \n')
+		sys.argv[1] = '-h'
+	if (len(sys.argv)==1 or '-help'==sys.argv[1].lower()[-5:] or '-h'==sys.argv[1].lower()):
+		print('Usage/Example:')
+		print('(1) helpy --help / -h :')
+		print('    show this help')
+		print('(2) helpy --doc :')
+		print('    show all help_* files in ~/helpy_doc/')
+		print('(3) helpy --notvim numpy')
+		print('(4) helpy keras.layers.Conv2D :')
+		print('    if not exist, generate and then show, if exist, show the existed one but not generate again')
+		print('(5) helpy -f keras.layers.Conv2D :')
+		print('    force to generate and show no matter it exists or not')
+		print('(6) helpy --syspath ~/uniface:/usr/package -f keras.layers.Conv2D :')
+		print("    first do sys.path.append('~/uniface') and sys.path.append('/usr/package') (use ':' to separate), then ......")
+		return
+	elif ('-doc'==sys.argv[1].lower()[-4:]):
+		print(dirpath+' :\n')
+		os.system('ls '+dirpath)
+		return
+	elif ('-f'==sys.argv[1].lower()): 
+		force, a, b = True, sys.argv[2], None
+	else:
+		force, a, b = False, sys.argv[1], None
+	
+	if (a[0]=='-'): 
+		print('Invalid: '+a)
+		return
+	
+	filepath = dirpath + 'help_' + a
+	if (not force and os.path.exists(filepath)):
+		c = open(filepath).read()
+		if (c == ''):
+			os.system('/bin/rm '+filepath)
+			print('NOT exist: '+sys.argv[-1])
+			return
+		if (vim is not None):
+			print(whichvim+' '+filepath)
+			os.system(whichvim+' '+filepath)
+		return filepath
+
+	if ('.' not in a): 
+		importstr = 'import '+a
+	#	helpstr = 'help('+a+')'
+		helpstr = a
+		importstr = [(importstr, helpstr)]
+	else:
+		a = a.split('.')
+		importstr = []
+		for i in range(len(a)-1, 0, -1): # i=[3,2,1]
+			s = 'from '+a[0]
+			for j in range(1,i):
+				s += '.'+a[j]
+			s += ' import '+a[i]
+			helpstr = a[i]
+			for j in range(i+1, len(a)):
+				helpstr += '.'+a[j]
+		#	helpstr = 'help('+helpstr+')'
+			importstr.append((s, helpstr))
+
+	s = 'import sys\n'
+	for sp in syspath:
+		sp = os.path.abspath(os.path.expanduser(sp))
+		s += 'sys.path.append("'+sp+'")\n'
+	for i in range(len(importstr)):
+		s += i*'    '+'try:\n'
+		s += i*'    '+'    '+importstr[i][0]+'\n'
+		s += i*'    '+'    abc = '+importstr[i][1]+'\n'
+		y = importstr[i][0].split(' ')[1]
+		s += i*'    '+'    import '+y+'\n'
+		s += i*'    '+'    try: path = '+y+'.__path__[0]+"/"\n'
+		s += i*'    '+'    except:\n'
+		s += i*'    '+'         try: path = '+y+'.__file__.split("__init__.py")[0]+"/"\n'
+		s += i*'    '+'         except: path = ""\n'
+		if (vim is not None):
+			s += i*'    '+'    print(path+"/")\n'
+			s += i*'    '+'    print("'+importstr[i][0]+'")\n'
+			s += i*'    '+'    print("help('+importstr[i][1]+')")\n'
+		s += i*'    '+'except: '
+		if (i == len(importstr)-1): 
+			s += 'path = ""\n'
+		else : s += '\n'
+	s += 'if (path[-5:] == ".pyc/"):\n'
+	s += '    n = path[:-5].rfind("/")\n'
+	s += '    path = path[:n+1]\n'
+	s += 'sys.stdout = open("'+filepath+'", "w")\n'
+	s += 'try: print(path+"\\n")\nexcept: pass\n'
+	s += 'help(abc)\n'
+	s += 'sys.stdout.close()'
+
+	f = open('helpy_temp.py', 'w')
+	f.write(s)
+	f.close()
+	
+	os.system('python helpy_temp.py')
+#	os.system('/bin/rm helpy_temp.py')
+	
+	f = open(filepath)
+	if (f.read() == ''): 
+		os.system('/bin/rm '+filepath)
+		print('NOT exist: '+sys.argv[-1])
+		return
+	else: 
+		f.close()
+		if (vim is not None):
+			print(whichvim+' '+filepath)
+			os.system(whichvim+' '+filepath)
+		return filepath
+
+
+# When used as a shell command in bin/
+helpy(whichvim)
+

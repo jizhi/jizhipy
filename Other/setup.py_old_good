@@ -1,0 +1,187 @@
+#! /usr/bin/env python
+'''
+./setup.py install     : install *.py except jizhipy_tool
+./setup.py install all : install all include jizhipy_tool
+'''
+##################################################
+
+# directory_name must be the same as module_name
+module_name = 'jizhipy'
+
+# setup.py install --all : install all
+# setup.py install : install except files in exclude
+exclude = ['jizhipy_tool']
+
+##################################################
+
+
+import os, sys
+def ShellCmd( cmd ) : 
+	return os.popen(cmd).read().split('\n')[:-1]
+
+pwd = ShellCmd('pwd')[0]
+dir_name = pwd[pwd.rfind('/')+1:]
+if (dir_name != module_name) : 
+	raise Exception('directory_name must be the same as module_name, but now dir_name="'+dir_name+'", module_name="'+module+'"')
+
+# dest, without / at the end
+whichpython = ShellCmd('which python')[0].split('/')
+whichpython = '/'+whichpython[1]+'/'
+
+
+# syspath, usrpath
+syspath = sys.path[:]
+for i in range(len(syspath)) : 
+	if (syspath[i][:len(whichpython)]==whichpython and syspath[i][-9:]=='-packages') : 
+		syspath = syspath[i] + '/'
+		break
+
+key = '/lib64/' if('/lib64/' in syspath)else '/lib/'
+usrpath = '~/.local/lib/'+syspath.split(key)[1]
+#usrpath = '~/Library/Python/2.7/lib/python/site-packages/'
+usrpathpwd = os.path.abspath(os.path.expanduser(usrpath))
+
+home = os.path.expanduser('~')
+
+fixpath = None
+for argv in sys.argv[1:] : 
+	if (argv[:9] == '--prefix=') : fixpath = argv[9:]
+	else : continue
+	if (fixpath[:len(home)] == home) : fixpath = '~'+fixpath[len(home):]
+	if (fixpath[-1] != '/') : fixpath += '/'
+	fixpathpwd = os.path.abspath(os.path.expanduser(fixpath))
+
+syspath += module_name
+usrpath += module_name
+if (fixpath is not None) : fixpath += module_name
+
+whoami = ShellCmd('whoami')[0]
+if (whoami == 'root') : 
+	dest = syspath
+	envlist = []
+elif (fixpath is None) : 
+	dest = usrpath
+	if (usrpathpwd[:len(home)] == home) : usrpathpwd = '$HOME'+usrpathpwd[len(home):]
+	envlist = ['export PYTHONPATH="'+usrpathpwd+'"']
+else : 
+	dest = fixpath
+	if (fixpathpwd[:len(home)] == home) : fixpathpwd = '$HOME'+fixpathpwd[len(home):]
+	envlist = ['export PYTHONPATH="'+fixpathpwd+'"']
+
+
+##################################################
+
+
+def HELP() : 
+	print('--------------- Path: ---------------')
+	print('SysPath         : '+syspath)
+	print('UsrPath         : '+usrpath)
+	print('Destination     : '+dest)
+	if (envlist) : print('Add environment : '+envlist[0])
+	print('--------------- Usage: ---------------')
+	print('./setup.py install             : install except jizhipy_tool')
+	print('./setup.py install --all       : install all include jizhipy_tool')
+	print('./setup.py install --prefix=.. : install to specific destination')
+	print('./setyp.py unstall             : uninstall '+module_name)
+	exit()
+
+if ((len(sys.argv) == 1) or ('-h' in sys.argv) or ('--help' in sys.argv) or ('install' not in sys.argv and 'uninstall' not in sys.argv)) : HELP()
+
+
+if ('install' in sys.argv) : which = 'install'
+elif ('uninstall' in sys.argv) : which = 'uninstall'
+
+
+# Installed files to be handled
+os.system('/bin/rm -f *.pyc')
+files = os.listdir('.')  # include .xxx
+if ('__init__.py' not in files): 
+	os.system('touch __init__.py')
+	files.append('__init__.py')
+
+isall = True if('--all' in sys.argv) else False
+
+
+# install / uninstall
+if (which == 'uninstall') : 
+	print('Uninstall from  '+dest)
+	opt = '-rm'
+	dest = os.path.abspath(os.path.expanduser(dest))
+	os.system('/bin/rm -rf '+dest)
+
+
+
+elif (which == 'install') : 
+	print('Install to  '+dest)
+	# Check pwd
+	here = os.path.abspath('.').split('/')[-1]
+	if (here != module_name) : 
+		print('Error: please run  ./setup.py install  in directory "'+module_name+'/"')
+		exit()
+	opt = '-add'
+	dest = os.path.abspath(os.path.expanduser(dest))
+	# rm
+	if (os.path.exists(dest)) : 
+		if (not isall) : # rm and install all
+			os.system('mv '+dest+' '+dest+'_oldversion')
+		else : os.system('/bin/rm -rf '+dest)
+	os.makedirs(dest)
+	home = os.path.expanduser('~/')
+	pwd = ''
+	# install
+	for i in range(len(files)) : 
+		if (files[i] == 'jizhi.py') : 
+			pwd = os.path.abspath(files[i])
+			continue
+		if(files[i][0]=='.' and files[i][-4:]=='.swp'): continue
+		if (files[i] == '.DS_Store') : continue
+		if (not isall and files[i] in exclude) : continue
+		os.system('cp -r '+files[i]+' '+dest+'/')
+	if (not isall) : 
+		for i in range(len(exclude)) : 
+			ef = dest+'_oldversion/'+exclude[i]
+			if (os.path.exists(ef)) : os.system('mv '+ef+' '+dest+'/')
+		os.system('/bin/rm -rf '+dest+'_oldversion')
+	#----------------------------------------
+	# Generate tags
+#	outdir = home + 'tagsdir/'
+#	if (not os.path.exists(outdir)) : os.mkdir(outdir)
+#	os.chdir(dest)
+#	os.system('python ptags.py '+dest+'/*.py')
+#	os.system('mv tags '+module_name+'.tags')
+#	os.system('cp '+module_name+'.tags '+outdir)
+#	outname = home+'tags'
+#	if (os.path.exists(outname)): os.system('/bin/rm '+outname)
+#	fn = os.popen('ls '+outdir+'*.tags').readlines()
+#	tags = []
+#	for i in range(len(fn)) : 
+#		tags += open(fn[i][:-1]).readlines()
+#	tags.sort()  # Must sort, otherwaise useless
+#	outname = open(outname, 'w')
+#	for tag in tags : outname.write(tag)
+#	outname.close()
+	#----------------------------------------
+	if (isall) : 
+		# untar 21cmFAST_kit
+		tooldir = dest+'/jizhipy_tool/'
+		kit21 = tooldir + '21cmFAST_kit'
+		if (os.path.exists(kit21+'.tar.gz')) : 
+			if (os.path.exists(kit21)) : os.system('/bin/rm -rf '+kit21)  # remove the old version
+			os.system('tar -xzf '+kit21+'.tar.gz -C '+dest+'/jizhipy_tool/')
+		# compile GSM
+		gsmdir = tooldir + 'GSM/'
+		cmd = 'gfortran -ffixed-line-length-none '+gsmdir+'gsm_parameter.f -o '+gsmdir+'gsm_parameter.out'
+		os.system(cmd)
+
+	
+
+# Add/Remove environment
+for i in range(len(envlist)) : 
+	env = envlist[i]
+	n1 = env.find(' ')
+	for n2 in range(n1+1, len(env)) : 
+		if (env[n2] != ' ') : break
+	which = env[:n1]
+	env = env[n2:]
+	os.system('python Basic/sysenv.py '+opt+' '+which+" '"+env+"'")
+
